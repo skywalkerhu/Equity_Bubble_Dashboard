@@ -1,0 +1,9 @@
+# Python cache and environment files
+__pycache__/
+*.pyc
+.venv/
+env/
+.env
+
+# Streamlit specific overrides
+.streamlit/config.toml
