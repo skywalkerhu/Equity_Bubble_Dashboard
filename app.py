@@ -18,7 +18,7 @@ df = load_data()
 
 if not df.empty:
     # Section 1: Macro Bubble Monitor
-    st.header("1. Macro Asset Monitor")
+    st.header("1. Implied Earnings Yields")
     if os.path.exists('data/valuations.json'):
         with open('data/valuations.json', 'r') as f:
             vals = json.load(f)
