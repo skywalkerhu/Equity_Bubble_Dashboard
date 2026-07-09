@@ -67,9 +67,11 @@ if not df.empty:
     with col1:
         st.subheader("S&P 500 (SPY) 10-Yr Cyclical Z-Score")
         fig_spy = go.Figure()
+        # Ensure we plot the full index including early NaN padding to see the full historical context
         fig_spy.add_trace(go.Scatter(x=df.index, y=df['SPY_ZScore'], mode='lines', name='Z-Score'))
         fig_spy.add_hline(y=2, line_dash="dash", line_color="red", annotation_text="+2 Sigma (Bubble)")
         fig_spy.add_hline(y=-2, line_dash="dash", line_color="green", annotation_text="-2 Sigma (Crash)")
+        fig_spy.update_xaxes(rangeslider_visible=True) # Added slider for deeper historical navigation
         st.plotly_chart(fig_spy, use_container_width=True)
         
     with col2:
@@ -96,16 +98,13 @@ if not df.empty:
         'IYZ': 'Telecommunications'
     }
     
-    # FIX: Explicitly match the list to the keys we defined in the sector_map
     sectors = list(sector_map.keys())
     zscore_cols = [f"{s}_ZScore" for s in sectors]
     
-    # Filter only columns that actually exist in the dataframe to prevent KeyError
     available_cols = [col for col in zscore_cols if col in df.columns]
     
     latest_data = df[available_cols].iloc[-1].dropna()
     
-    # Clean names
     latest_data.index = [f"{idx.split('_')[0]} - {sector_map[idx.split('_')[0]]}" for idx in latest_data.index] 
     
     fig_bar = px.bar(
