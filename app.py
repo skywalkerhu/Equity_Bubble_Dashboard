@@ -76,13 +76,5 @@ if not df.empty:
         fig_rel.add_hline(y=-2, line_dash="dash", line_color="green")
         st.plotly_chart(fig_rel, use_container_width=True)
         
-    with colB:
-        st.subheader("Absolute Momentum")
-        fig_abs = go.Figure()
-        fig_abs.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered[f'{selected_sector}_Abs_ZScore'], mode='lines', line=dict(color='orange')))
-        fig_abs.add_hline(y=2, line_dash="dash", line_color="red")
-        fig_abs.add_hline(y=-2, line_dash="dash", line_color="green")
-        st.plotly_chart(fig_abs, use_container_width=True)
-
 else:
     st.error("Data missing.")
