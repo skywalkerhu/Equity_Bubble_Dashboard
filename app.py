@@ -67,7 +67,7 @@ if not df.empty:
     selected_sector = st.selectbox("Select Sector:", sectors, format_func=lambda x: f"{x} - {sector_map[x]}")
     df_filtered = df.loc['1999-01-01':]
     
-    colA, colB = st.columns(2)
+    colA= st.columns(1)
     with colA:
         st.subheader("Relative Value (vs SPY)")
         fig_rel = go.Figure()
