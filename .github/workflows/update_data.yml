@@ -27,7 +27,7 @@ jobs:
         python -m pip install --upgrade pip
         
         # Force install the exact packages the data engine needs directly
-        python -m pip install yfinance pandas numpy statsmodels pandas-datareader
+        python -m pip install -r requirements.txt
 
         echo "Executing Data Engine"
         python data_engine.py
