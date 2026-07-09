@@ -70,10 +70,19 @@ if not df.empty:
     colA= st.columns(1)
     with colA:
         st.subheader("Relative Value (vs SPY)")
+
         fig_rel = go.Figure()
-        fig_rel.add_trace(go.Scatter(x=df_filtered.index, y=df_filtered[f'{selected_sector}_ZScore'], mode='lines'))
+        fig_rel.add_trace(
+            go.Scatter(
+                x=df_filtered.index,
+                y=df_filtered[f"{selected_sector}_ZScore"],
+                mode="lines"
+            )
+        )
+
         fig_rel.add_hline(y=2, line_dash="dash", line_color="red")
         fig_rel.add_hline(y=-2, line_dash="dash", line_color="green")
+
         st.plotly_chart(fig_rel, use_container_width=True)
         
 else:
