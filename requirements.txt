@@ -1,3 +1,7 @@
 streamlit
 pandas
+numpy
+yfinance
+statsmodels
+pandas-datareader
 plotly
