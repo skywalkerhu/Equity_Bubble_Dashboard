@@ -15,30 +15,43 @@ warnings.filterwarnings('ignore')
 def get_fred_data(series_id, start_date):
     """Fetches macroeconomic data from FRED and resamples to monthly start."""
     df = web.DataReader(series_id, 'fred', start_date)
-    # CHANGED: 'MS' (Month Start) aligns FRED dates exactly with yfinance dates (e.g., 2000-01-01)
+    # 'MS' (Month Start) aligns FRED dates exactly with yfinance dates (e.g., 2000-01-01)
     return df.resample('MS').first()
 
 def get_market_data(start_date):
     """Fetches equity and bond data from yfinance."""
-    sectors = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLB', 'XLRE', 'XLC']
-    tickers = ['SPY', 'VEA', 'VWO', 'TLT', 'IEF'] + sectors
+    # Replaced XLRE with IYR (Traditional Real Estate, est. 2000)
+    sectors = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLB', 'IYR', 'IYZ']
+    tickers = ['^GSPC', 'VEA', 'VWO', 'TLT', 'IEF'] + sectors
     
     raw_data = yf.download(tickers, start=start_date, interval="1mo")
-    return raw_data['Close'].dropna(how='all')
+    df = raw_data['Close'].dropna(how='all')
+    
+    # ALCHEMY: Rename ^GSPC to SPY so the downstream engine and frontend app don't break
+    if '^GSPC' in df.columns:
+        df.rename(columns={'^GSPC': 'SPY'}, inplace=True)
+        
+    return df
 
 def calculate_hp_zscore(series, lambda_val=14400, window=120):
     """Applies HP filter to extract the cycle, then calculates a rolling 10-year Z-score."""
     clean_series = series.dropna()
-    if len(clean_series) < window:
+    
+    # Require at least 24 months of data to start calculating a meaningful Z-score
+    if len(clean_series) < 24:
         return pd.Series(index=series.index, dtype=float)
         
     cycle, _ = hpfilter(clean_series, lamb=lambda_val)
     
-    rolling_mean = cycle.rolling(window=window).mean()
-    rolling_std = cycle.rolling(window=window).std()
+    # FIX: min_periods=24 allows newer ETFs to render data 
+    # after 2 years of history, instead of waiting a full 10 years.
+    rolling_mean = cycle.rolling(window=window, min_periods=24).mean()
+    rolling_std = cycle.rolling(window=window, min_periods=24).std()
     z_score = (cycle - rolling_mean) / rolling_std
     
-    return z_score
+    # Realign with the original index to pad the pre-inception years with NaNs
+    aligned_z_score = pd.Series(z_score, index=clean_series.index).reindex(series.index)
+    return aligned_z_score
 
 def fetch_global_valuations():
     """Fetches current P/E metadata to calculate Implied Earnings Yield and 3Y Treasury."""
@@ -86,7 +99,8 @@ def fetch_global_valuations():
 
 def process_data():
     print("Starting data extraction...")
-    start_date = '2000-01-01'
+    # CHANGED: Pushed start date to 1970 to yield observable Z-scores starting in 1980!
+    start_date = '1970-01-01'
     
     # Fetch global valuations snapshot
     print("Fetching global earnings yields...")
@@ -122,7 +136,7 @@ def process_data():
     master_df['SPY_Acceleration'] = master_df['SPY_Velocity_MoM'].diff()
     
     # 5. Sector Ratios & Z-Scores
-    sectors = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLB', 'XLRE', 'XLC']
+    sectors = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLB', 'IYR', 'IYZ']
     for sector in sectors:
         if sector in market_df.columns:
             master_df[f'{sector}_Ratio'] = market_df[sector] / market_df['SPY']
