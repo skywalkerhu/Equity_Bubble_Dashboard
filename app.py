@@ -8,8 +8,8 @@ import os
 import json
 
 # --- Page Config ---
-st.set_page_config(page_title="Equity bubble & Value Explorer", layout="wide")
-st.title("Equity bubble & Sector Value Explorer")
+st.set_page_config(page_title="Macro Superbubble & Value Explorer", layout="wide")
+st.title("Macro Superbubble & Sector Value Explorer")
 st.markdown(r"Tracking $\ge 2\sigma$ deviations for market tops and $\le -2\sigma$ capitulations for value entry points.")
 
 # --- Load Data ---
@@ -37,12 +37,10 @@ if not df.empty:
         with open(val_path, 'r') as f:
             vals = json.load(f)
             
-        # Create a 4-column grid that wraps smoothly for the 12 assets
         cols = st.columns(4)
         for i, (ticker, data) in enumerate(vals.items()):
             with cols[i % 4]:
                 if data['yield']:
-                    # Special formatting to differentiate the Risk-Free Rate from Equity P/E Yields
                     if ticker == 'US3Y':
                         st.metric(
                             label=f"{data['name']}", 
@@ -60,7 +58,7 @@ if not df.empty:
                 else:
                     st.metric(label=f"{data['name']} ({ticker})", value="Data N/A")
     else:
-        st.warning(f"Valuation data not found at `{val_path}`. Please run the updated `python data_engine.py` script in your terminal to generate the JSON file.")
+        st.warning(f"Valuation data not found.")
         
     st.markdown("---")
 
@@ -76,34 +74,14 @@ if not df.empty:
         
     with col2:
         st.subheader("Market Velocity & Acceleration")
-        # Plotting the 1st (Velocity) and 2nd (Acceleration) derivative
         fig_deriv = go.Figure()
         fig_deriv.add_trace(go.Scatter(x=df.index, y=df['SPY_Velocity_MoM'], mode='lines', name='Velocity (MoM %)', opacity=0.5))
         fig_deriv.add_trace(go.Scatter(x=df.index, y=df['SPY_Acceleration'], mode='lines', name='Acceleration', line=dict(color='orange')))
         st.plotly_chart(fig_deriv, use_container_width=True)
 
-    col3, col4 = st.columns(2)
-    with col3:
-        st.subheader("Housing vs. Income Ratio")
-        housing_data = df['Housing_Income_Ratio'].dropna()
-        if housing_data.empty:
-            st.warning("Data sync required. Please run the updated data_engine.py")
-        else:
-            st.line_chart(housing_data)
-            
-    with col4:
-        st.subheader("Developed (VEA) vs. Emerging (VWO)")
-        dev_em_data = df['Dev_EM_Ratio'].dropna()
-        if dev_em_data.empty:
-            st.warning("Data sync required. Please run the updated data_engine.py")
-        else:
-            st.line_chart(dev_em_data)
-
-    # --- Section 2: Sector Value Explorer (Contrarian Fishing) ---
+    # --- Section 2: Sector Value Explorer ---
     st.header("2. Sector Relative Value Explorer")
-    st.markdown(r"Identifies sectors experiencing capital flight relative to the S&P 500. Look for values $\le -2\sigma$.")
     
-    # Map the tickers to their actual sector names
     sector_map = {
         'XLK': 'Technology',
         'XLF': 'Financials',
@@ -114,31 +92,33 @@ if not df.empty:
         'XLI': 'Industrials',
         'XLU': 'Utilities',
         'XLB': 'Materials',
-        'IYR': 'Real Estate',       # Swapped XLRE for IYR
-        'IYZ': 'Telecommunications' # Swapped XLC for IYZ
+        'IYR': 'Real Estate',
+        'IYZ': 'Telecommunications'
     }
+    
+    # FIX: Explicitly match the list to the keys we defined in the sector_map
     sectors = list(sector_map.keys())
     zscore_cols = [f"{s}_ZScore" for s in sectors]
     
-    # Get the latest valid row for the bar chart by fetching the last row first
-    latest_data = df[zscore_cols].iloc[-1].dropna()
+    # Filter only columns that actually exist in the dataframe to prevent KeyError
+    available_cols = [col for col in zscore_cols if col in df.columns]
     
-    # Clean names and append the full sector name to the bar chart index
+    latest_data = df[available_cols].iloc[-1].dropna()
+    
+    # Clean names
     latest_data.index = [f"{idx.split('_')[0]} - {sector_map[idx.split('_')[0]]}" for idx in latest_data.index] 
     
-    # Bar Chart of current valuations
     fig_bar = px.bar(
         x=latest_data.index, 
         y=latest_data.values, 
         labels={'x': 'Sector', 'y': 'Current 10-Yr Z-Score'},
         color=latest_data.values,
-        color_continuous_scale='RdYlGn_r' # Green for low (value), Red for high (overvalued)
+        color_continuous_scale='RdYlGn_r'
     )
     fig_bar.add_hline(y=2, line_dash="dash", line_color="red")
     fig_bar.add_hline(y=-2, line_dash="dash", line_color="green")
     st.plotly_chart(fig_bar, use_container_width=True)
 
-    # Individual Sector Deep Dive with formatted Selectbox
     selected_sector = st.selectbox(
         "Select Sector for Historical Deep Dive:", 
         sectors, 
@@ -148,9 +128,6 @@ if not df.empty:
     st.subheader(f"{selected_sector} ({sector_map[selected_sector]}) vs SPY: Cyclical Deviation")
     fig_sector = go.Figure()
     fig_sector.add_trace(go.Scatter(x=df.index, y=df[f'{selected_sector}_ZScore'], mode='lines', name=f'{selected_sector} Z-Score'))
-    fig_sector.add_hline(y=2, line_dash="dash", line_color="red", annotation_text="Over-concentrated")
-    fig_sector.add_hline(y=-2, line_dash="dash", line_color="green", annotation_text="Capitulation / Value Zone")
+    fig_sector.add_hline(y=2, line_dash="dash", line_color="red")
+    fig_sector.add_hline(y=-2, line_dash="dash", line_color="green")
     st.plotly_chart(fig_sector, use_container_width=True)
-
-else:
-    st.error("The dashboard is blank because the CSV file was not found or is empty. Check your terminal's current folder path.")
