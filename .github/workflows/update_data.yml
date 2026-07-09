@@ -37,6 +37,12 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action Bot"
         git add data/
+
+        # 1. Stash any potential local conflicts
+        # 2. Pull the latest remote changes (rebase to avoid merge commits)
+        # 3. Apply our automated data update
+        
+        git pull --rebase origin main
         
         # Smart commit: Only commit and push if there are actual changes
         git diff --quiet && git diff --staged --quiet || (git commit -m "Automated data update" && git push)
