@@ -1,5 +1,3 @@
-# This is your frontend visualizer. Run locally using 'streamlit run app.py'
-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -67,11 +65,10 @@ if not df.empty:
     with col1:
         st.subheader("S&P 500 (SPY) 10-Yr Cyclical Z-Score")
         fig_spy = go.Figure()
-        # Ensure we plot the full index including early NaN padding to see the full historical context
         fig_spy.add_trace(go.Scatter(x=df.index, y=df['SPY_ZScore'], mode='lines', name='Z-Score'))
         fig_spy.add_hline(y=2, line_dash="dash", line_color="red", annotation_text="+2 Sigma (Bubble)")
         fig_spy.add_hline(y=-2, line_dash="dash", line_color="green", annotation_text="-2 Sigma (Crash)")
-        fig_spy.update_xaxes(rangeslider_visible=True) # Added slider for deeper historical navigation
+        fig_spy.update_xaxes(rangeslider_visible=True)
         st.plotly_chart(fig_spy, use_container_width=True)
         
     with col2:
@@ -100,11 +97,9 @@ if not df.empty:
     
     sectors = list(sector_map.keys())
     zscore_cols = [f"{s}_ZScore" for s in sectors]
-    
     available_cols = [col for col in zscore_cols if col in df.columns]
     
     latest_data = df[available_cols].iloc[-1].dropna()
-    
     latest_data.index = [f"{idx.split('_')[0]} - {sector_map[idx.split('_')[0]]}" for idx in latest_data.index] 
     
     fig_bar = px.bar(
@@ -118,15 +113,30 @@ if not df.empty:
     fig_bar.add_hline(y=-2, line_dash="dash", line_color="green")
     st.plotly_chart(fig_bar, use_container_width=True)
 
+    # Individual Sector Deep Dive
     selected_sector = st.selectbox(
         "Select Sector for Historical Deep Dive:", 
         sectors, 
         format_func=lambda x: f"{x} - {sector_map[x]}"
     )
     
+    # Filter the dataframe to start from 1999-01-01 for a clean visual
+    df_filtered = df.loc['1999-01-01':]
+    
     st.subheader(f"{selected_sector} ({sector_map[selected_sector]}) vs SPY: Cyclical Deviation")
     fig_sector = go.Figure()
-    fig_sector.add_trace(go.Scatter(x=df.index, y=df[f'{selected_sector}_ZScore'], mode='lines', name=f'{selected_sector} Z-Score'))
+    
+    # Use the filtered dataframe for the plot
+    fig_sector.add_trace(go.Scatter(
+        x=df_filtered.index, 
+        y=df_filtered[f'{selected_sector}_ZScore'], 
+        mode='lines', 
+        name=f'{selected_sector} Z-Score'
+    ))
+    
     fig_sector.add_hline(y=2, line_dash="dash", line_color="red")
     fig_sector.add_hline(y=-2, line_dash="dash", line_color="green")
     st.plotly_chart(fig_sector, use_container_width=True)
+
+else:
+    st.error("The dashboard is blank because the CSV file was not found or is empty.")
