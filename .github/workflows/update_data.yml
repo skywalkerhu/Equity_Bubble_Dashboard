@@ -10,6 +10,9 @@ jobs:
   update-data:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write # Allows the workflow to push changes to the repository
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
