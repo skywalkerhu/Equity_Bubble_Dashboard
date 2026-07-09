@@ -38,10 +38,11 @@ jobs:
         git config --local user.name "GitHub Action Bot"
         git add data/
 
-        # 1. Stash any potential local conflicts
+        # 1. Clean the workspace: Reset to remove any uncommitted artifacts
+        git reset --hard HEAD
+
         # 2. Pull the latest remote changes (rebase to avoid merge commits)
-        # 3. Apply our automated data update
-        
+
         git pull --rebase origin main
         
         # Smart commit: Only commit and push if there are actual changes
