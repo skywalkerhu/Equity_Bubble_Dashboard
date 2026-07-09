@@ -114,8 +114,8 @@ if not df.empty:
         'XLI': 'Industrials',
         'XLU': 'Utilities',
         'XLB': 'Materials',
-        'XLRE': 'Real Estate',
-        'XLC': 'Communication Services'
+        'IYR': 'Real Estate',       # Swapped XLRE for IYR
+        'IYZ': 'Telecommunications' # Swapped XLC for IYZ
     }
     sectors = list(sector_map.keys())
     zscore_cols = [f"{s}_ZScore" for s in sectors]

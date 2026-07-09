@@ -20,7 +20,7 @@ def get_fred_data(series_id, start_date):
 
 def get_market_data(start_date):
     """Fetches equity and bond data from yfinance."""
-    # Replaced XLRE with IYR (Traditional Real Estate, est. 2000)
+    #  Replaced XLRE with IYR (Traditional Real Estate, est. 2000)
     sectors = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLB', 'IYR', 'IYZ']
     tickers = ['^GSPC', 'VEA', 'VWO', 'TLT', 'IEF'] + sectors
     
