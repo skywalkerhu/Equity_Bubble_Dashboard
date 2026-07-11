@@ -1,80 +1,91 @@
-# Equity Bubble & Sector Value Explorer
+Macro Superbubble Explorer
 
-This is a data-driven macro equity markets surveillance and tactical asset allocation dashboard built using Python and Streamlit. This platform identifies structural macroeconomic extremes, cyclical asset bubbles defined as a 2-sigma event, and value capitulation points by evaluating 10-year historical data through a statistical mechanics framework.
+An institutional-grade quantitative macroeconomic dashboard designed to track equity superbubbles, sector relative value, and systemic risk. Built with Python and Streamlit, this project leverages a fully automated CI/CD data pipeline to analyze market regimes using Hodrick-Prescott filters, rolling Z-scores, and structural liquidity flows.
 
-Live Dashboard: 
-https://equitybubbledashboard-jadequity.streamlit.app/
+📊 Dashboard Features
 
----
+1. Monthly Market & Sector Dynamics
 
-## 1. Executive Summary & Core Philosophy
+Macro Asset Monitor: Real-time tracking of global equity and treasury yields.
 
-The primary objective of this dashboard is to mitigate the risk of buying into late-stage asset bubbles while systematically identifying contrarian "value fishing" zones where capital flight has created extreme mispricings. The author completed this project in late June, 2026 as the author believed that we were heading into an equity bubble phase for the U.S. stock market.
+Cyclical Z-Scores: Employs Hodrick-Prescott (HP) filters to extract the underlying cycle of the S&P 500 and apply a rolling 10-year Z-score, tracking $\ge 2\sigma$ deviations for market tops and $\le -2\sigma$ capitulations.
 
-The analytical core focuses on locating 2-sigma ($\sigma$) deviations from structural trends across global indices, economic ratios, and equity sectors. Data are sourced from yfinance, a public financial data API. You should expect a time lag between real-time data and data shown here on the dashbaord. However, in the author's opinion that does not matter for equity investors. 
+Velocity & Acceleration: Measures momentum derivatives of the broader market.
 
----
+Sector Relative Value Explorer: Evaluates the cyclical deviation of all 11 GICS sectors relative to the S&P 500 to identify rotational value entry points.
 
-## 2. Global Implied Earnings Yield Scoreboard ($E/P$)
+High-Frequency Speculative Turnover: Tracks total market trading volume (SPY + Nasdaq) as a proxy for speculative fever.
 
-At the top of the dashboard is a real-time global valuation tracking grid. Rather than viewing price multiples in isolation, the engine extracts trailing P/E ratios of a few regional and thematic benchmarks and transforms them into an **Implied Earnings Yield**:
+Credit Stress Indicators: Monitors the Moody's Baa Corporate Bond minus Fed Funds Rate spread. Applies a dynamic 10-year rolling Z-score to highlight periods of peak credit exuberance or severe liquidity stress.
 
-$$\text{Implied Earnings Yield } (E/P) = \frac{1}{\text{Trailing P/E}} \times 100$$
+2. Quarterly Macro Risk & Liquidity (IMF Quantity Pillars)
 
-### Macro Implementation:
-* **The Opportunity Cost Baseline:** The scoreboard explicitly includes the **3-Year US Treasury Yield** - sourced dynamically from the Federal Reserve Bank of St. Louis FRED API - as the short-to-medium-term risk-free proxy. The author wanted to avoid the "too long-term" illusion to pretend that he's an "involuntary long-term value investor".
-* **The Equity Risk Premium (ERP):** By placing regional equity yields side-by-side with the risk-free rate, you can immediately assess if a country or theme offers an acceptable premium for equity risk. If a major index yield drops near or below the U.S. Treasury rate, the risk premium compression signals structural overvaluation.
-* **Granular Arbitrage Geographies:** To avoid the distortion of generalized "Emerging Market" baskets, the scoreboard breaks allocations down into direct geographic proxies. Hong Kong is placed into the EM bucket since over 95% of public companies there are from Chinese mainland. 
-  * **US Equity Focus:** S&P 500 (`SPY`), Nasdaq 100 (`QQQ`)
-  * **Developed International:** Japan (`EWJ`), Germany (`EWG`), United Kingdom (`WWU`)
-  * **Emerging Markets:** China (`MCHI`), Hong Kong (`EWH`), Brazil (`EWZ`), India (`INDA`), South Korea (`EWY`), Taiwan (`EWT`)
+Corporate Equity Issuance Flow of Funds: Tracks the structural supply of equities, dynamically parsing Federal Reserve Enhanced Financial Accounts (EFA) data.
 
----
+Gross Corporate Equity Issuance
 
-## 3. Quantitative Methodologies
+Gross Retirements (Categorized by Share Repurchases vs. M&A)
 
-### 10-Year Cyclical Z-Score: The Hodrick-Prescott Framework
-To find cyclical tops and bottoms, the backend engine eliminates secular macro noise from asset time series using the **Hodrick-Prescott (HP) Filter**. This mathematical tool decomposes an economic time series $y_t$ into a smooth long-term trend component $g_t$ and a cyclical component $c_t$:
+Net Equity Issuance
 
-$$y_t = g_t + c_t$$
+Shadow Banking / Private Credit Share: Measures Non-Bank Credit as a percentage of Total Non-Financial Credit using Bank for International Settlements (BIS) data to proxy structural, off-balance-sheet leverage.
 
-The filter minimizes the variance of the cyclical component subject to a penalty parameter $\lambda$ which is configured to $14,400$ for monthly data to insulate longer structural waves:
+🏗️ Architecture & Data Pipeline
 
-$$\min_{g_t} \sum_{t=1}^T c_t^2 + \lambda \sum_{t=2}^{T-1} [ (g_{t+1} - g_t) - (g_t - g_{t-1}) ]^2$$
+The project decouples the heavy data processing from the front-end rendering to ensure lightning-fast dashboard performance.
 
-Once the cyclical component $c_t$ is isolated, the system runs a rolling 10-year mean and standard deviation to generate a standardized **Z-Score**:
+data_engine.py (The Backend): Executed weekly via GitHub Actions. It extracts data from Yahoo Finance (yfinance), the FRED API (pandas_datareader), and local static historical flow datasets. It computes all HP filters and rolling Z-scores, then exports the cleaned, aggregated data to static CSVs.
 
-$$Z_t = \frac{c_t - \mu_{\text{10Yr}}}{\sigma_{\text{10Yr}}}$$
+app.py (The Frontend): A Streamlit application that loads the static CSVs and renders interactive, highly responsive charts using Plotly.
 
-* **$\ge +2\sigma$ - Bubble Zone:** The asset cycle is overextended. Historically, entries at these points yield poor multi-year forward returns.
-* **$\le -2\sigma$ -  Value Zone:** The cycle has experienced meaningful selling pressure, presenting high-probability windows for secular value investors.
+🚀 Local Setup & Installation
 
-### Market Velocity & Acceleration
-To capture structural inflection points before a full price reversal materializes, the platform plots the first and second derivatives of price momentum:
-* **Velocity - Month-over-Month % Change:** Captures the speed of price expansion or contraction.
-* **Acceleration - Rate of Change of Velocity:** Measures the exhaustion of a trend. A decelerating velocity at a $+2\sigma$ peak often signals the absolute top of a superbubble structure.
+1. Clone the repository and navigate to the project directory:
 
-### Housing-to-Income Ratio
-A systemic long-term structural health index tracking the median housing price index relative to real personal disposable income. When this ratio scales into extreme positive Z-scores, it signals asset-price expansion driven by excessive credit or unsustainable multiple-expansion, rather than structural economic fundamentals. 
-What's worse than an equity bubble is a housing bubble, or housing + equity + multi-asset bubble. We might be in multi-asset bubble territory given how far commodities/precious metals like gold and silver have extended their price runs. 
+git clone [https://github.com/yourusername/macro-superbubble-explorer.git](https://github.com/yourusername/macro-superbubble-explorer.git)
+cd macro-superbubble-explorer
 
-### Developed Markets vs. Emerging Markets Ratio  - `VEA` / `VWO`
-This metric maps the relative pricing of Developed Markets against Emerging Markets over multi-year periods.
-* **High Ratio / Uptrend:** Signals extreme capital concentration in defensive or dominant developed geographies (often peaking during late-stage Western technology cycles).
-* **Low Ratio / Downtrend:** Signals deep capital flight away from developing spaces. When this ratio compresses to historical standard deviation boundaries, it signals an asymmetric macro opportunity to rotate out of expensive developed large-caps and back into highly-discounted global asset classes.
 
-### Sector Relative Value Explorer
-This explorer compares individual S&P 500 sectors against the broader index. By taking the sector price relative to the market ($P_{\text{sector}} / P_{\text{market}}$) and generating its cyclical Z-score, it highlights exact pockets within the market undergoing structural capital flight (e.g., Energy or Utilities trading at $\le -2\sigma$ during a secular technology blow-off top).
+2. Create and activate a virtual environment:
 
----
+Mac/Linux: python -m venv venv && source venv/bin/activate
 
-## 4. Local Installation & Architecture
+Windows: python -m venv venv then .\venv\Scripts\activate
 
-The system splits database management and visualization into a distinct two-layer architecture to maximize analytical stability:
+3. Install dependencies:
 
-```text
-├── data_engine.py       # Backend Data Fetcher (YFinance/FRED APIs), Processing, and Mathematical Modeling
-├── app.py               # Frontend UI Framework (Streamlit Web Application & Plotly Engines)
-└── data/
-    ├── market_data.csv  # Standardized Historical Cycle Data
-    └── valuations.json  # Live Implied Global Valuation Metadata Archive
+pip install -r requirements.txt
+
+
+4. Run the Data Engine:
+Generate the latest market_data.csv, quarterly_data.csv, and baa_spread.csv files locally.
+
+python data_engine.py
+
+
+5. Launch the Dashboard:
+
+streamlit run app.py
+
+
+⚙️ Automation (GitHub Actions)
+
+This repository utilizes GitHub Actions (.github/workflows/update_data.yml) for continuous integration:
+
+Weekly Data Cron: Runs data_engine.py automatically every Monday at midnight to pull the latest macro data, calculates updated standard deviations, and commits the fresh CSVs back to the repository.
+
+Streamlit Heartbeat: Pings the Streamlit Cloud server periodically to prevent the app from hibernating due to inactivity.
+
+🛠️ Tech Stack
+
+Language: Python 3.10+
+
+Frontend UI: Streamlit
+
+Data Visualization: Plotly (Express & Graph Objects)
+
+Data Engineering: Pandas, NumPy
+
+Quantitative Modeling: Statsmodels (HP Filters)
+
+Data Sources: yfinance, FRED API, Federal Reserve EFA, BIS
