@@ -10,7 +10,7 @@ st.set_page_config(page_title="Macro Superbubble Explorer", layout="wide")
 
 # --- Sidebar Navigation ---
 st.sidebar.title("Dashboard Navigation")
-page = st.sidebar.radio("Select View:", ["Market & Sector Dynamics", "Quarterly Macro Risk & Liquidity"])
+page = st.sidebar.radio("Select View:", ["Market & Sector Dynamics", "Quarterly U.S. Equity Issuance & Shadow Banking Financing Data"])
 
 # --- Load Data ---
 @st.cache_data(ttl=3600)
@@ -25,8 +25,15 @@ def load_quarterly_data():
         return pd.DataFrame()
     return pd.read_csv('data/quarterly_data.csv', index_col=0, parse_dates=True)
 
+@st.cache_data(ttl=3600)
+def load_baa_spread_data():
+    if not os.path.exists('data/baa_spread.csv'):
+        return pd.DataFrame()
+    return pd.read_csv('data/baa_spread.csv', index_col=0, parse_dates=True)
+
 df_monthly = load_market_data()
 df_quarterly = load_quarterly_data()
+df_baa = load_baa_spread_data()
 
 # ==========================================
 # PAGE 1: MONTHLY MARKET & SECTOR DYNAMICS
@@ -98,28 +105,37 @@ if page == "Market & Sector Dynamics":
         st.plotly_chart(fig_sector, use_container_width=True)
 
         # --- Section 3: High-Frequency Quantity Data ---
-        st.header("3. High-Frequency Market Sentiment")
+        st.header("3. U.S. Equity Issuance & Investment Grade Yield Spread Over Treasury")
         
-        col3, col4 = st.columns(2)
-        with col3:
-            st.subheader("Total Market Speculative Turnover (SPY + Nasdaq)")
-            if 'Total_Volume_ZScore' in df_monthly.columns:
-                fig_vol = make_subplots(specs=[[{"secondary_y": True}]])
-                fig_vol.add_trace(go.Bar(x=df_monthly.index, y=df_monthly['Total_Volume_ZScore'], name="Volume Z-Score", marker_color='rgba(135, 206, 250, 0.6)'), secondary_y=False)
-                fig_vol.add_trace(go.Scatter(x=df_monthly.index, y=df_monthly['SPY'], name="S&P 500 Price", mode='lines', line=dict(color='black')), secondary_y=True)
-                fig_vol.add_hline(y=2, line_dash="dash", line_color="red", secondary_y=False)
-                fig_vol.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0))
-                st.plotly_chart(fig_vol, use_container_width=True)
+        st.subheader("Total Market Speculative Turnover (SPY + Nasdaq)")
+        if 'Total_Volume_ZScore' in df_monthly.columns:
+            fig_vol = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_vol.add_trace(go.Bar(x=df_monthly.index, y=df_monthly['Total_Volume_ZScore'], name="Volume Z-Score", marker_color='rgba(135, 206, 250, 0.6)'), secondary_y=False)
+            fig_vol.add_trace(go.Scatter(x=df_monthly.index, y=df_monthly['SPY'], name="S&P 500 Price", mode='lines', line=dict(color='black')), secondary_y=True)
+            fig_vol.add_hline(y=2, line_dash="dash", line_color="red", secondary_y=False)
+            fig_vol.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0))
+            st.plotly_chart(fig_vol, use_container_width=True)
+            
+        st.markdown("---")
         
-        with col4:
-            st.subheader("ICE BofA US High Yield Spread")
-            fig_hy = go.Figure()
-            if 'HY_Spread' in df_monthly.columns:
-                hy_df = df_monthly['HY_Spread'].dropna()
-                fig_hy.add_trace(go.Scatter(x=hy_df.index, y=hy_df, mode='lines', name='HY Spread %', line=dict(color='darkred')))
-                fig_hy.add_hline(y=hy_df.mean(), line_dash="dash", line_color="blue", annotation_text="Historical Mean")
-                fig_hy.add_hrect(y0=0, y1=4.0, fillcolor="red", opacity=0.1, line_width=0, annotation_text="Peak Exuberance Zone")
-                st.plotly_chart(fig_hy, use_container_width=True)
+        st.subheader("Moody's Baa Corporate Bond Spread (10-Yr Z-Score)")
+        fig_baa = go.Figure()
+        if not df_baa.empty and 'BAAFF' in df_baa.columns:
+            baa_series = df_baa['BAAFF'].dropna()
+            
+            # Dynamically calculate a 10-year (approx 2520 trading days) rolling Z-Score for the Daily Baa Spread
+            rolling_mean = baa_series.rolling(window=2520, min_periods=252).mean()
+            rolling_std = baa_series.rolling(window=2520, min_periods=252).std()
+            baa_zscore = (baa_series - rolling_mean) / rolling_std
+            
+            fig_baa.add_trace(go.Scatter(x=baa_zscore.index, y=baa_zscore, mode='lines', name='Baa Spread Z-Score', line=dict(color='darkred')))
+            fig_baa.add_hline(y=0, line_dash="dash", line_color="gray", annotation_text="Historical Mean (0)")
+            fig_baa.add_hline(y=2, line_dash="dash", line_color="red", annotation_text="+2σ (Credit Stress)")
+            fig_baa.add_hline(y=-2, line_dash="dash", line_color="green", annotation_text="-2σ (Tight Credit)")
+            
+            # Highlight negative z-scores as tight spreads / exuberance
+            fig_baa.add_hrect(y0=-5.0, y1=-2.0, fillcolor="red", opacity=0.1, line_width=0, annotation_text="Peak Exuberance Zone")
+            st.plotly_chart(fig_baa, use_container_width=True)
     else:
         st.error("Market data file not found. Please run the data engine.")
 
@@ -127,27 +143,49 @@ if page == "Market & Sector Dynamics":
 # ==========================================
 # PAGE 2: QUARTERLY MACRO RISK & LIQUIDITY
 # ==========================================
-elif page == "Quarterly Macro Risk & Liquidity":
-    st.title("Macro Risk & Liquidity (IMF Quantity Pillars)")
+elif page == "Quarterly U.S. Equity Issuance & Shadow Banking Financing Data":
+    st.title("Quarterly U.S. Equity Issuance & Shadow Banking Financing Data")
     st.markdown("Analyzing market regime risk via structural issuance supply and shadow credit market conditions on a quarterly basis.")
     
     if not df_quarterly.empty:
-        # Drop strict NaNs to ensure clean line drawing for quarterly data
-        df_q = df_quarterly.dropna(subset=['Net_Equity_Issuance_Yield', 'Shadow_Bank_Credit'], how='all')
+        df_q = df_quarterly.dropna(subset=['Net_Equity_Issuance', 'Shadow_Bank_Credit'], how='all')
         
-        st.subheader("Net Equity Issuance Yield")
-        st.markdown("*Positive spikes indicate major public share dilution/IPOs vastly outpacing share buybacks.*")
-        fig_issuance = go.Figure()
-        fig_issuance.add_trace(go.Scatter(x=df_q.index, y=df_q['Net_Equity_Issuance_Yield'], mode='lines+markers', name='Issuance Yield %', line=dict(color='purple')))
-        fig_issuance.add_hline(y=0, line_dash="solid", line_color="gray")
-        st.plotly_chart(fig_issuance, use_container_width=True)
+        # Create a specific dataframe for the issuance charts to drop pre-1996 NaNs cleanly
+        issuance_cols = ['Net_Equity_Issuance', 'Gross_Equity_Issuance', 'Equity_Repurchases', 'Equity_Retirements_MA']
+        available_issuance_cols = [col for col in issuance_cols if col in df_q.columns]
+        df_issuance = df_q.dropna(subset=available_issuance_cols, how='all')
         
-        st.subheader("Shadow Banking / Private Credit Proxy")
-        st.markdown("*Total Non-Financial Credit minus Domestic Bank Credit (BIS Data, Quarterly).*")
+        st.subheader("1. Gross Corporate Equity Issuance")
+        st.markdown("*Nominal total of new equity issued to the public markets.*")
+        fig_gross = go.Figure()
+        if 'Gross_Equity_Issuance' in df_issuance.columns:
+            fig_gross.add_trace(go.Bar(x=df_issuance.index, y=df_issuance['Gross_Equity_Issuance'], name='Gross Issuance', marker_color='rgba(46, 139, 87, 0.8)'))
+        fig_gross.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_gross, use_container_width=True)
+        
+        st.subheader("2. Gross Retirements by Category")
+        st.markdown("*Breakdown of equity removed from the market via Share Repurchases vs. M&A.*")
+        fig_retire = go.Figure()
+        if 'Equity_Repurchases' in df_issuance.columns and 'Equity_Retirements_MA' in df_issuance.columns:
+            fig_retire.add_trace(go.Bar(x=df_issuance.index, y=df_issuance['Equity_Repurchases'], name='Share Repurchases', marker_color='rgba(220, 20, 60, 0.8)'))
+            fig_retire.add_trace(go.Bar(x=df_issuance.index, y=df_issuance['Equity_Retirements_MA'], name='M&A Retirements', marker_color='rgba(255, 140, 0, 0.8)'))
+        fig_retire.update_layout(barmode='stack', height=350, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_retire, use_container_width=True)
+        
+        st.subheader("3. Net Equity Issuance")
+        st.markdown("*Gross Issuance minus Total Retirements. Positive values indicate net equity dilution.*")
+        fig_net = go.Figure()
+        if 'Net_Equity_Issuance' in df_issuance.columns:
+            fig_net.add_trace(go.Scatter(x=df_issuance.index, y=df_issuance['Net_Equity_Issuance'], mode='lines+markers', name='Net Issuance (Nominal)', line=dict(color='purple', width=3)))
+        fig_net.add_hline(y=0, line_dash="solid", line_color="gray")
+        fig_net.update_layout(height=350, margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_net, use_container_width=True)
+        
+        st.subheader("Shadow Banking / Private Credit Share (%)")
+        st.markdown("*Non-Bank Credit as a Percentage of Total Non-Financial Credit (BIS Data, Quarterly).*")
         fig_shadow = go.Figure()
-        # Filter where shadow credit actually has data to plot cleanly
         df_shadow = df_q.dropna(subset=['Shadow_Bank_Credit'])
-        fig_shadow.add_trace(go.Scatter(x=df_shadow.index, y=df_shadow['Shadow_Bank_Credit'], mode='lines+markers', name='Shadow Credit', line=dict(color='teal')))
+        fig_shadow.add_trace(go.Scatter(x=df_shadow.index, y=df_shadow['Shadow_Bank_Credit'], mode='lines+markers', name='Shadow Credit %', line=dict(color='teal')))
         st.plotly_chart(fig_shadow, use_container_width=True)
         
     else:
