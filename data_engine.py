@@ -1,5 +1,5 @@
 # This script is executed weekly by GitHub Actions.
-# It extracts data, applies the HP Filter and Z-scores, and saves a static CSV.
+# It extracts data, applies the HP Filter and Z-scores, and saves static CSVs.
 
 import os
 import yfinance as yf
@@ -12,23 +12,27 @@ import json
 
 warnings.filterwarnings('ignore')
 
-def get_fred_data(series_id, start_date):
-    """Fetches macroeconomic data from FRED and resamples to monthly start."""
+def get_fred_data(series_id, start_date, freq='MS'):
+    """Fetches macroeconomic data from FRED and resamples to the specified frequency."""
     df = web.DataReader(series_id, 'fred', start_date)
-    return df.resample('MS').first()
+    return df.resample(freq).first()
 
 def get_market_data(start_date):
-    """Fetches equity and bond data from yfinance."""
+    """Fetches equity and bond data from yfinance, including Volume."""
     sectors = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLB', 'IYR', 'IYZ']
-    tickers = ['^GSPC', 'VEA', 'VWO', 'TLT', 'IEF'] + sectors
+    tickers = ['^GSPC', '^IXIC', 'VEA', 'VWO', 'TLT', 'IEF'] + sectors
     
     raw_data = yf.download(tickers, start=start_date, interval="1mo")
-    df = raw_data['Close'].dropna(how='all')
     
-    if '^GSPC' in df.columns:
-        df.rename(columns={'^GSPC': 'SPY'}, inplace=True)
+    close_df = raw_data['Close'].dropna(how='all')
+    volume_df = raw_data['Volume'].dropna(how='all')
+    
+    if '^GSPC' in close_df.columns:
+        close_df.rename(columns={'^GSPC': 'SPY'}, inplace=True)
+    if '^GSPC' in volume_df.columns:
+        volume_df.rename(columns={'^GSPC': 'SPY'}, inplace=True)
         
-    return df
+    return close_df, volume_df
 
 def calculate_hp_zscore(series, lambda_val=14400, window=120):
     """Applies HP filter to extract the cycle, then calculates a rolling 10-year Z-score."""
@@ -47,7 +51,7 @@ def calculate_hp_zscore(series, lambda_val=14400, window=120):
     return aligned_z_score
 
 def fetch_global_valuations():
-    """Fetches current P/E metadata to calculate Implied Earnings Yield."""
+    """Fetches current P/E metadata."""
     indices = {
         'SPY': 'S&P 500 (US)', 'QQQ': 'Nasdaq 100 (US)', 'MCHI': 'China (MSCI)',
         'EWH': 'Hong Kong (MSCI)', 'EWJ': 'Japan (MSCI)', 'EWZ': 'Brazil (MSCI)',
@@ -77,35 +81,54 @@ def fetch_global_valuations():
 
 def process_data():
     start_date = '1970-01-01'
+    os.makedirs('data', exist_ok=True)
+    
     fetch_global_valuations()
     
-    market_df = get_market_data(start_date)
+    # --- 1. MONTHLY MARKET DATA ENGINE ---
+    market_df, volume_df = get_market_data(start_date)
     market_df.index = pd.to_datetime(market_df.index).tz_localize(None)
+    volume_df.index = pd.to_datetime(volume_df.index).tz_localize(None)
     
-    fred_series = ['MEHOINUSA672N', 'CSUSHPINSA']
-    macro_data = pd.DataFrame()
-    for series in fred_series:
-        macro_data[series] = get_fred_data(series, start_date)[series]
-    macro_data = macro_data.ffill()
-    macro_data.index = pd.to_datetime(macro_data.index).tz_localize(None)
+    monthly_fred_series = ['MEHOINUSA672N', 'CSUSHPINSA', 'BAMLH0A0HYM2']
+    macro_monthly = pd.DataFrame()
+    for series in monthly_fred_series:
+        macro_monthly[series] = get_fred_data(series, start_date, freq='MS')[series]
+    macro_monthly.index = pd.to_datetime(macro_monthly.index).tz_localize(None)
     
     master_df = pd.DataFrame(index=market_df.index)
     master_df['SPY'] = market_df['SPY']
+    master_df['SPY_Velocity_MoM'] = market_df['SPY'].pct_change()
+    master_df['SPY_Acceleration'] = master_df['SPY_Velocity_MoM'].diff()
+    master_df['SPY_ZScore'] = calculate_hp_zscore(master_df['SPY'])
     
     sectors = ['XLK', 'XLF', 'XLV', 'XLY', 'XLP', 'XLE', 'XLI', 'XLU', 'XLB', 'IYR', 'IYZ']
     for sector in sectors:
         if sector in market_df.columns:
-            # 1. Relative Value Z-Score
             master_df[f'{sector}_Ratio'] = market_df[sector] / market_df['SPY']
             master_df[f'{sector}_ZScore'] = calculate_hp_zscore(master_df[f'{sector}_Ratio'])
             
-            # 2. Absolute Momentum Z-Score
-            master_df[f'{sector}_Abs_ZScore'] = calculate_hp_zscore(market_df[sector])
-            
-    master_df['SPY_ZScore'] = calculate_hp_zscore(master_df['SPY'])
-    
-    os.makedirs('data', exist_ok=True)
+    if '^IXIC' in volume_df.columns and 'SPY' in volume_df.columns:
+        master_df['Total_Market_Volume'] = volume_df['SPY'] + volume_df['^IXIC']
+        master_df['Total_Volume_ZScore'] = calculate_hp_zscore(master_df['Total_Market_Volume'])
+        
+    master_df = master_df.join(macro_monthly, how='left')
+    master_df['HY_Spread'] = master_df['BAMLH0A0HYM2']
     master_df.to_csv('data/market_data.csv')
+    
+    # --- 2. QUARTERLY MACRO DATA ENGINE ---
+    quarterly_fred_series = ['NCBCEIQ027S', 'NCBCEAMVD', 'CRDQUSAPABIS', 'CRDQUSBPUBIS']
+    macro_quarterly = pd.DataFrame()
+    for series in quarterly_fred_series:
+        macro_quarterly[series] = get_fred_data(series, start_date, freq='QS')[series]
+    macro_quarterly.index = pd.to_datetime(macro_quarterly.index).tz_localize(None)
+    
+    macro_quarterly['Net_Equity_Issuance_Yield'] = (macro_quarterly['NCBCEIQ027S'] / macro_quarterly['NCBCEAMVD']) * 100
+    macro_quarterly['Shadow_Bank_Credit'] = macro_quarterly['CRDQUSAPABIS'] - macro_quarterly['CRDQUSBPUBIS']
+    
+    # Save purely quarterly dataset without monthly NaNs
+    macro_quarterly.dropna(how='all', inplace=True)
+    macro_quarterly.to_csv('data/quarterly_data.csv')
 
 if __name__ == "__main__":
     process_data()
