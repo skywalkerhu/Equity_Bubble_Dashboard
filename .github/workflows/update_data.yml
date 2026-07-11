@@ -3,7 +3,7 @@ name: Weekly Superbubble Data Update
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */12 * * *' # Every 12 hours
+    - cron: '0 0 * * 1' # Runs every Monday at midnight
 
 jobs:
   Commit-and-Push:
@@ -49,6 +49,5 @@ jobs:
     steps:
       - name: Ping Dashboard
         run: |
-          echo "Pinging Streamlit to prevent hibernation..."
-          curl -s -L -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" https://equitybubbledashboard-jadequity.streamlit.app/ > /dev/null
-          echo "Ping successful."
+          # Ping the backend health endpoint to avoid redirect loops (Exit Code 47)
+          curl -sSf https://equitybubbledashboard-jadequity.streamlit.app/_stcore/health > /dev/null
