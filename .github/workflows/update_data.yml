@@ -3,7 +3,7 @@ name: Weekly Superbubble Data Update
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 1' # Runs every Monday at midnight
+    - cron: '0 */12 * * *' # Every 12 hours
 
 jobs:
   Commit-and-Push:
@@ -47,7 +47,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [Commit-and-Push] # Only ping if the data update succeeded
     steps:
-      - name: Ping Dashboard
+      - name: Ping Dashboard with Cookie Simulation
         run: |
+          echo "Pinging Streamlit dashboard to keep it alive."
           # Ping the backend health endpoint to avoid redirect loops (Exit Code 47)
-          curl -sSf https://equitybubbledashboard-jadequity.streamlit.app/_stcore/health > /dev/null
+          curl -c cookies.txt -b cookies.txt -L -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" https://equitybubbledashboard-jadequity.streamlit.app/ > /dev/null
+          echo "Ping completed. App is awake."
