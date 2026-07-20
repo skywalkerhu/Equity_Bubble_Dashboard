@@ -97,32 +97,49 @@ def calculate_hp_zscore(series, lambda_val=14400, window=120):
     return aligned_z_score
 
 def fetch_global_valuations():
-    """Fetches current P/E metadata."""
+    """Fetches current P/E metadata. Merges with existing file so a rate-limited
+    run doesn't wipe out last-known-good values."""
+    import time
+
     indices = {
         'SPY': 'S&P 500 (US)', 'QQQ': 'Nasdaq 100 (US)', 'MCHI': 'China (MSCI)',
         'EWH': 'Hong Kong (MSCI)', 'EWJ': 'Japan (MSCI)', 'EWZ': 'Brazil (MSCI)',
         'INDA': 'India (MSCI)', 'EWY': 'South Korea (MSCI)', 'EWT': 'Taiwan (MSCI)',
         'EWG': 'Germany (MSCI)', 'EWU': 'UK (MSCI)'
     }
-    valuations = {}
-    
+
+    val_path = 'data/valuations.json'
+    # Load existing data as the fallback baseline
+    if os.path.exists(val_path):
+        with open(val_path, 'r') as f:
+            valuations = json.load(f)
+    else:
+        valuations = {}
+
     try:
         treasury_df = web.DataReader('DGS3', 'fred', pd.Timestamp.now() - pd.DateOffset(days=10))
         treasury_3y = float(treasury_df.dropna().iloc[-1, 0])
         valuations['US3Y'] = {'name': '3-Yr US Treasury', 'pe': None, 'yield': treasury_3y}
-    except Exception:
-        valuations['US3Y'] = {'name': '3-Yr US Treasury', 'pe': None, 'yield': None}
+    except Exception as e:
+        print(f"⚠️ Treasury fetch failed, keeping last known value: {e}")
+        valuations.setdefault('US3Y', {'name': '3-Yr US Treasury', 'pe': None, 'yield': None})
 
     for ticker, name in indices.items():
         try:
             info = yf.Ticker(ticker).info
             pe = info.get('trailingPE')
-            valuations[ticker] = {'name': name, 'pe': pe, 'yield': (1/pe)*100 if pe and pe > 0 else None}
-        except Exception:
-            valuations[ticker] = {'name': name, 'pe': None, 'yield': None}
-            
+            if pe and pe > 0:
+                valuations[ticker] = {'name': name, 'pe': pe, 'yield': (1 / pe) * 100}
+            else:
+                print(f"⚠️ {ticker}: no trailingPE in response, keeping last known value.")
+                valuations.setdefault(ticker, {'name': name, 'pe': None, 'yield': None})
+        except Exception as e:
+            print(f"⚠️ {ticker}: fetch failed ({e}), keeping last known value.")
+            valuations.setdefault(ticker, {'name': name, 'pe': None, 'yield': None})
+        time.sleep(2)  # space out requests to reduce Yahoo rate-limit hits
+
     os.makedirs('data', exist_ok=True)
-    with open('data/valuations.json', 'w') as f:
+    with open(val_path, 'w') as f:
         json.dump(valuations, f)
 
 def process_data():

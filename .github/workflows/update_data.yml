@@ -47,9 +47,37 @@ jobs:
     runs-on: ubuntu-latest
     needs: [Commit-and-Push] # Only ping if the data update succeeded
     steps:
-      - name: Ping Dashboard with Cookie Simulation
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Playwright
         run: |
-          echo "Pinging Streamlit dashboard to keep it alive."
-          # Ping the backend health endpoint to avoid redirect loops (Exit Code 47)
-          curl -c cookies.txt -b cookies.txt -L -s -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" https://equitybubbledashboard-jadequity.streamlit.app/ > /dev/null
-          echo "Ping completed. App is awake."
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Wake Streamlit Dashboard
+        run: |
+          python -c "
+          from playwright.sync_api import sync_playwright
+
+          URL = 'https://equitybubbledashboard-jadequity.streamlit.app/'
+
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              page = browser.new_page()
+              page.goto(URL, timeout=60000)
+
+              try:
+                  # Sleeping apps show a static shell with this wake button
+                  button = page.get_by_text('Yes, get this app back up!')
+                  button.wait_for(timeout=15000)
+                  button.click()
+                  print('App was asleep — clicked wake button.')
+                  page.wait_for_timeout(15000)  # give it time to boot
+              except Exception:
+                  print('No wake button found — app was likely already awake.')
+
+              browser.close()
+          "
