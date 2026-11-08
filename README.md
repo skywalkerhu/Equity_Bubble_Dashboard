@@ -1,4 +1,4 @@
-# Equity Bubble & Sector Value Explorer
+# Global Equity Market Value Monitor
 
 This is a data-driven macro equity markets surveillance and tactical asset allocation dashboard built using Python and Streamlit. This platform identifies structural macroeconomic extremes, cyclical asset bubbles defined as a 2-sigma event, and value capitulation points by evaluating 10-year historical data through a statistical mechanics framework.
 
